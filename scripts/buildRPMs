@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+#
+# buildRPMs - build RPMS
+
+fail=0
+
+cd ~/rpmbuild/SRPMS
+for srpm in *; do
+	rpmbuild --rebuild $srpm | tee /workspace/target/build-rpm-${srpm}.log
+	if [[ $? != 0 ]]; then
+		fail=1
+	fi
+done
+
+# lint
+rpmlint ../RPMS/*/*.rpm | tee /workspace/target/lint-rpm.log
+
+for dir in ../RPMS/*; do
+	cp -v $dir/* /workspace/target/
+done
+
+tar cfvJ /workspace/target/builddir.tar.xz ~/rpmbuild/BUILD
+exit $fail

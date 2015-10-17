@@ -1,0 +1,6 @@
+basesystem-minimal
+urpmi
+rpm-build
+locales
+distro-release-OpenMandriva
+gnupg

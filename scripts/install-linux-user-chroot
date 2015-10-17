@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+#
+# install-linux-user-chroot
+
+urpmi --auto lib64seccomp-devel task-devel
+cd /tmp
+git clone https://git.gnome.org/browse/linux-user-chroot
+cd linux-user-chroot
+./autogen.sh
+make
+make install
+chmod u+s /usr/local/bin/linux-user-chroot
+cd
+rm -rf /tmp/linux-user-chroot

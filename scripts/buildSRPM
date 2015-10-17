@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+#
+# buildSRPM
+
+PACKAGE="${1}"
+
+cd ~/rpmbuild/SPECS
+rpmlint -i $PACKAGE.spec | tee /workspace/target/lint-spec.log
+rpmbuild -bs $PACKAGE.spec | tee /workspace/target/build-srpm-${PACKAGE}.log
+rpmlint -i ../SRPMS/*.rpm | tee /workspace/target/lint-srpm.log
+
+cp -rv ../SRPMS/*.rpm /workspace/target/

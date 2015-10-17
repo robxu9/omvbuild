@@ -1,0 +1,139 @@
+#!/usr/bin/env bash
+#
+# omvbuild - builds RPM packages for OpenMandriva
+
+#set -x
+
+WORKSPACE=/workspace
+CHROOTLOC=$WORKSPACE/build
+SOURCEDIR=$WORKSPACE/src
+BUILTDIR=$WORKSPACE/target
+
+SCRIPTSDIR=/scripts
+PACKAGESLIST=/packages.list
+MEDIALOC="http://abf-downloads.abf.io/@TARGET@/repository/@ARCH@/@REPOSITORY@/@BRANCH@/"
+URPMI_OPTS="--no-suggests"
+
+omvChroot() {
+	if [[ $ARCH == "i586" ]]; then
+		set -- /usr/bin/linux32 "$@"
+	fi
+
+	/usr/local/bin/linux-user-chroot --unshare-pid --unshare-net --unshare-ipc \
+		--mount-proc /proc --mount-bind /dev /dev \
+		--mount-bind $WORKSPACE /workspace \
+		--mount-bind $SCRIPTSDIR /scripts \
+		$CHROOTLOC "$@"
+}
+
+netChroot() {
+	if [[ $ARCH == "i586" ]]; then
+		set -- /usr/bin/linux32 "$@"
+	fi
+
+	# set /etc/resolv.conf to google public dns
+	mv $CHROOTLOC/etc/resolv.conf $CHROOTLOC/etc/resolv.conf.bak
+	cat > $CHROOTLOC/etc/resolv.conf <<EOF
+nameserver 8.8.8.8
+nameserver 8.8.4.4
+EOF
+
+	/usr/local/bin/linux-user-chroot --unshare-pid --unshare-ipc \
+		--mount-proc /proc --mount-bind /dev /dev \
+		--mount-bind $WORKSPACE /workspace \
+		--mount-bind $SCRIPTSDIR /scripts \
+		$CHROOTLOC "$@"
+
+	local retCode=$?
+
+	# move back /etc/resolv.conf
+	rm -f $CHROOTLOC/etc/resolv.conf
+	mv $CHROOTLOC/etc/resolv.conf.bak $CHROOTLOC/etc/resolv.conf
+
+	return $retCode
+}
+
+addMedia() {
+	local target="$1"
+	local arch="$2"
+	local repo="$3"
+	local branch="$4"
+
+	# build url
+	local targetURL="$(echo $MEDIALOC | sed -e s/@TARGET@/$target/g)"
+	local archURL="$(echo $targetURL | sed -e s/@ARCH@/$arch/g)"
+	local repoURL="$(echo $archURL | sed -e s/@REPOSITORY@/$repo/g)"
+	local branchURL="$(echo $repoURL | sed -e s/@BRANCH@/$branch/g)"
+
+	# add
+	urpmi.addmedia --urpmi-root $CHROOTLOC "$repo-$branch" "$branchURL"
+}
+
+main() {
+	# echo out information
+	envsubst <<EOM
+omvbuild - starting
+
+current settings:
+workspace: ${WORKSPACE}
+packages list: ${PACKAGESLIST}
+target: ${TARGET}
+repository: ${REPOSITORY}
+branch: ${BRANCH}
+arch: ${ARCH}
+package: ${PACKAGE}
+EOM
+
+	urpmi $URPMI_OPTS --auto --auto-update
+
+	# build the chroot
+	addMedia "${TARGET}" "${ARCH}" "main" "release"
+	addMedia "${TARGET}" "${ARCH}" "main" "updates"
+
+	if [[ "${REPOSITORY}" != "main" ]]; then
+		addMedia "${TARGET}" "${ARCH}" "${REPOSITORY}" "release"
+		addMedia "${TARGET}" "${ARCH}" "${REPOSITORY}" "updates"
+	fi
+
+	urpmi.update --urpmi-root $CHROOTLOC -a
+	echo "preinstalling packages"
+	urpmi $URPMI_OPTS --auto --urpmi-root $CHROOTLOC $(cat $PACKAGESLIST | paste -sd ' ' -)
+
+	# add necessary directories needed to bind mount
+	mkdir -pv $CHROOTLOC/{workspace,scripts}
+
+	# bind mount and run rpmbuild to create the SRPM
+	omvChroot /scripts/setupBuildEnv
+	omvChroot /scripts/buildSRPM "${PACKAGE}"
+
+	# install build dependencies
+	netChroot /scripts/installdeps
+
+	#declare -a buildreqs
+	#for srpm in $BUILTDIR/*.rpm; do
+	#	for req in $(rpm -q -p "$srpm" --requires); do
+	#		buildreqs+=("$req")
+	#	done
+	#done
+	#
+	#urpmi $URPMI_OPTS --auto --urpmi-root $CHROOTLOC "${buildreqs[@]}"
+
+	# bind mount and run rpmbuild to create the remaining RPMs
+	omvChroot /scripts/buildRPMs
+
+	# remove the chrootloc
+	#rm -rf $CHROOTLOC
+
+	# we're done. results are in ${TARGET}
+	echo "done."
+	exit 0
+}
+
+cleanup() {
+	# remove the chrootloc
+	rm -rf $CHROOTLOC
+}
+
+trap cleanup EXIT ERR
+
+main "$@"

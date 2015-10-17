@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+#
+# setupbuildenv
+#
+
+mkdir -pv ~/rpmbuild/{BUILD,RPMS,SOURCES,SRPMS,SPECS}
+
+cp -rv /workspace/src/*.spec ~/rpmbuild/SPECS/
+cp -rv /workspace/src/* ~/rpmbuild/SOURCES/

@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+#
+# make-directories
+
+mkdir -pv /workspace/{build,src,target} /scripts /chroot

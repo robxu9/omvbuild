@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+#
+# installdeps
+
+cd ~/rpmbuild/SRPMS
+for srpm in *; do
+  urpmi --auto --buildrequires "$srpm"
+done
