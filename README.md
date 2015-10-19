@@ -1,6 +1,6 @@
 # omvbuild
 
-...is a Docker container that build a package from the requested variables.
+...is a Docker container that builds a package from the requested variables.
 It does not make any assumptions on where you get the package -- merely
 builds whatever it's given and outputs the RPMS.
 
